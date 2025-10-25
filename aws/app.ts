@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { NetworkingStack } from './stacks/networking-stack';
 import { DataStack } from './stacks/data-stack';
 import { ComputeStack } from './stacks/compute-stack';
+import { RegistryStack } from './stacks/registry-stack';
 
 const app = new cdk.App();
 
@@ -23,10 +24,18 @@ const data = new DataStack(app, 'DataStack', {
 });
 data.addDependency(networking);
 
-// 3) Compute (depends on networking)
+// 3) Registry (ECR)
+const registry = new RegistryStack(app, 'RegistryStack', {
+  env,
+  repositoryName: 'intocollege',
+});
+
+// 4) Compute (depends on networking + registry)
 const compute = new ComputeStack(app, 'ComputeStack', {
   env,
   vpc: networking.vpc,
   ec2SecurityGroup: networking.ec2SecurityGroup,
+  ecrRepository: registry.repository,
 });
 compute.addDependency(networking);
+compute.addDependency(registry);

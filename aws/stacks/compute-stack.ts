@@ -7,22 +7,19 @@ import { Construct } from 'constructs';
 export interface ComputeStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;
   ec2SecurityGroup: ec2.SecurityGroup;
+  ecrRepository: ecr.IRepository;
   keyPairName?: string;
   instanceType?: ec2.InstanceType;
-  ecrRepositoryName?: string;
 }
 
 export class ComputeStack extends cdk.Stack {
   public readonly ec2Instance: ec2.Instance;
-  public readonly ecrRepository: ecr.Repository;
+  public readonly ecrRepository: ecr.IRepository;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    this.ecrRepository = new ecr.Repository(this, 'Repository', {
-      repositoryName: props.ecrRepositoryName ?? 'intocollege',
-      imageScanOnPush: true,
-    });
+    this.ecrRepository = props.ecrRepository;
 
     const role = new iam.Role(this, 'Ec2Role', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
