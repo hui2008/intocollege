@@ -1,7 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
-import { Compute } from '../constructs/compute';
 
 export interface ComputeStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;
@@ -12,37 +13,59 @@ export interface ComputeStackProps extends cdk.StackProps {
 }
 
 export class ComputeStack extends cdk.Stack {
-  public readonly compute: Compute;
+  public readonly ec2Instance: ec2.Instance;
+  public readonly ecrRepository: ecr.Repository;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    this.compute = new Compute(this, 'Compute', {
+    this.ecrRepository = new ecr.Repository(this, 'Repository', {
+      repositoryName: props.ecrRepositoryName ?? 'intocollege',
+      imageScanOnPush: true,
+    });
+
+    const role = new iam.Role(this, 'Ec2Role', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly'),
+      ],
+    });
+
+    const instanceType =
+      props.instanceType ?? ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MEDIUM);
+
+    const ami = ec2.MachineImage.latestAmazonLinux2023({
+      cpuType: ec2.AmazonLinuxCpuType.ARM_64,
+    });
+
+    this.ec2Instance = new ec2.Instance(this, 'Instance', {
       vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       securityGroup: props.ec2SecurityGroup,
-      keyPairName: props.keyPairName ?? 'intocollege-keypair',
-      instanceType:
-        props.instanceType ?? ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MEDIUM),
-      ecrRepositoryName: props.ecrRepositoryName ?? 'intocollege',
+      instanceType,
+      machineImage: ami,
+      keyName: props.keyPairName ?? 'intocollege-keypair',
+      role,
     });
 
     new cdk.CfnOutput(this, 'EC2InstanceId', {
-      value: this.compute.ec2Instance.instanceId,
+      value: this.ec2Instance.instanceId,
       description: 'EC2 Instance ID',
     });
 
     new cdk.CfnOutput(this, 'EC2PublicIP', {
-      value: this.compute.ec2Instance.instancePublicIp,
+      value: this.ec2Instance.instancePublicIp,
       description: 'EC2 Instance Public IP',
     });
 
     new cdk.CfnOutput(this, 'ECRRepositoryURI', {
-      value: this.compute.ecrRepository.repositoryUri,
+      value: this.ecrRepository.repositoryUri,
       description: 'ECR Repository URI',
     });
 
     new cdk.CfnOutput(this, 'ECRRepositoryName', {
-      value: this.compute.ecrRepository.repositoryName,
+      value: this.ecrRepository.repositoryName,
       description: 'ECR Repository Name',
     });
   }
