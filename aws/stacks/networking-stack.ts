@@ -7,44 +7,58 @@ export interface NetworkingStackProps extends cdk.StackProps {
   maxAzs?: number;
 }
 
+/**
+ * Implements a three-tier network architecture.
+ * - Web tier: handled by Cloudflare (no public load balancers in this stack).
+ * - App tier: EC2 instances in public subnets for now; planned migration to private subnets with IPv6.
+ * - Data tier: RDS in isolated private subnets with no internet egress.
+ */
 export class NetworkingStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
-  public readonly ec2SecurityGroup: ec2.SecurityGroup;
-  public readonly rdsSecurityGroup: ec2.SecurityGroup;
+  public readonly appTierSecurityGroup: ec2.SecurityGroup;
+  public readonly dataTierSecurityGroup: ec2.SecurityGroup;
 
   constructor(scope: Construct, id: string, props?: NetworkingStackProps) {
     super(scope, id, props);
 
-    // VPC with public and private subnets (default CDK layout)
-    this.vpc = new ec2.Vpc(this, 'VPC', {
-      ipAddresses: ec2.IpAddresses.cidr(props?.cidr ?? '10.0.0.0/16'),
-      maxAzs: props?.maxAzs ?? 2,
-      natGateways: 1,
+    this.vpc = new ec2.Vpc(this, 'Vpc', {
+      vpcName: 'LmsVpc',
+      ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
+      maxAzs: 3,
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          cidrMask: 24,
+          name: 'AppTier',
+          subnetType: ec2.SubnetType.PUBLIC, // can change to private with IPv6
+        },
+        {
+          cidrMask: 24,
+          name: 'DataTier',
+          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+        },
+      ],
     });
 
-    // Security Group for EC2 instances
-    this.ec2SecurityGroup = new ec2.SecurityGroup(this, 'EC2SecurityGroup', {
+    // Security group for app tier (EC2)
+    this.appTierSecurityGroup = new ec2.SecurityGroup(this, 'AppTierEc2Sg', {
       vpc: this.vpc,
-      description: 'Security group for EC2 instance',
+      description: 'Security group for app-tier EC2 instances',
       allowAllOutbound: true,
     });
-    this.ec2SecurityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(22),
-      'Allow SSH access'
-    );
+    // Human-friendly console name via tag (non-destructive)
+    cdk.Tags.of(this.appTierSecurityGroup).add('Name', 'lms-app-tier-ec2-sg');
+    this.appTierSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'Allow SSH access');
 
-    // Security Group for RDS - no outbound, allow Postgres from EC2 SG
-    this.rdsSecurityGroup = new ec2.SecurityGroup(this, 'RDSSecurityGroup', {
+    // Security group for data tier (RDS) - no outbound, allow Postgres from app tier
+    this.dataTierSecurityGroup = new ec2.SecurityGroup(this, 'DataTierRdsSg', {
       vpc: this.vpc,
-      description: 'Security group for RDS PostgreSQL instance',
+      description: 'Security group for data-tier PostgreSQL (RDS)',
       allowAllOutbound: false,
     });
-    this.rdsSecurityGroup.addIngressRule(
-      this.ec2SecurityGroup,
-      ec2.Port.tcp(5432),
-      'Allow Postgres from EC2 instances'
-    );
+    // Human-friendly console name via tag (non-destructive)
+    cdk.Tags.of(this.dataTierSecurityGroup).add('Name', 'lms-data-tier-rds-sg');
+    this.dataTierSecurityGroup.addIngressRule(this.appTierSecurityGroup, ec2.Port.tcp(5432), 'Allow to access RDS from EC2 instances');
 
     new cdk.CfnOutput(this, 'VpcId', {
       value: this.vpc.vpcId,

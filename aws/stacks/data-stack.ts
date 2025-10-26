@@ -6,7 +6,7 @@ import { Construct } from 'constructs';
 
 export interface DataStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;
-  rdsSecurityGroup: ec2.SecurityGroup;
+  dataTierSecurityGroup: ec2.SecurityGroup;
   instanceType?: ec2.InstanceType;
   databaseName?: string;
   secretName?: string;
@@ -36,7 +36,7 @@ export class DataStack extends cdk.Stack {
       vpc: props.vpc,
       credentials: rds.Credentials.fromSecret(secret),
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [props.rdsSecurityGroup],
+  securityGroups: [props.dataTierSecurityGroup],
       multiAz: false,
       allocatedStorage: 20,
       databaseName: props.databaseName ?? 'intocollege',
