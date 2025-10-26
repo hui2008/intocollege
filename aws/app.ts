@@ -2,6 +2,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { NetworkingStack } from './stacks/networking-stack';
 import { ComputeStack } from './stacks/compute-stack';
+import { DataStack } from './stacks/data-stack';
 
 const app = new cdk.App();
 
@@ -26,3 +27,11 @@ const compute = new ComputeStack(app, `${appName}Compute`, {
   keyPairName: 'IntoKeyPair-01',
 });
 compute.addDependency(networking);
+
+// Data tier (databases, storage)
+const data = new DataStack(app, `${appName}Data`, {
+  env,
+  vpc: networking.vpc,
+  dataTierSecurityGroup: networking.dataTierSecurityGroup,
+});
+data.addDependency(networking);
