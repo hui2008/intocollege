@@ -1,0 +1,9 @@
+services:
+  moodle:
+    image: 892797891149.dkr.ecr.ap-southeast-2.amazonaws.com/lms/moodle:5.0
+  cf-tunnel:
+    image: cloudflare/cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
