@@ -26,10 +26,22 @@ export class DataStack extends cdk.Stack {
     });
     this.secret = secret;
 
+    // Define engine once to reuse for parameter group and instance
+    const engine = rds.DatabaseInstanceEngine.postgres({
+      version: rds.PostgresEngineVersion.VER_17,
+    });
+
+    // Parameter group: disable SSL enforcement (rds.force_ssl=0)
+    const parameterGroup = new rds.ParameterGroup(this, 'IntoDbParams', {
+      engine,
+      parameters: {
+        'rds.force_ssl': '0',
+      },
+    });
+
     this.rdsInstance = new rds.DatabaseInstance(this, 'IntoDb', {
-      engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_17
-      }),
+      engine,
+      parameterGroup,
       databaseName: 'moodle',
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MEDIUM),
       allocatedStorage: 60,
