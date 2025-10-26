@@ -1,0 +1,6 @@
+services:
+  moodle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 892797891149.dkr.ecr.ap-southeast-2.amazonaws.com/lms/moodle:5.0
